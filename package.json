@@ -1,0 +1,45 @@
+{
+  "name": "@cargolift-cdi/lib-repositories",
+  "version": "0.0.2",
+  "description": "Repositórios de acesso a dados via TypeORM para projetos da Cargolift para o Middleware CDI",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cargolift-cdi/lib-repositories.git"
+  },
+  "sideEffects": false,
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "prepublishOnly": "npm run clean && npm run build && npm version patch --no-git-tag-version",
+    "updatelibs": "npm update @cargolift-cdi/types"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@cargolift-cdi/types": "^0.1.158",
+    "@types/node": "^25.2.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.13",
+    "@nestjs/typeorm": "^11.0.0",
+    "typeorm": "^0.3.28"
+  }
+}

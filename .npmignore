@@ -1,0 +1,8 @@
+src/
+*.log
+.eslintrc.json
+.prettierrc
+tsconfig.json
+tsconfig.tsd.json
+tsconfig.*.json
+tests/
