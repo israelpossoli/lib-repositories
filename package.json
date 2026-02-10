@@ -1,6 +1,6 @@
 {
   "name": "@cargolift-cdi/lib-repositories",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Repositórios de acesso a dados via TypeORM para projetos da Cargolift para o Middleware CDI",
   "license": "MIT",
   "repository": {
