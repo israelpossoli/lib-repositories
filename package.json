@@ -24,7 +24,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "dev": "tsc -w -p tsconfig.json",
+    "clean": "",
     "build": "npm run clean && tsc -p tsconfig.json",
     "prepublishOnly": "npm run clean && npm run build && npm version patch --no-git-tag-version",
     "updatelibs": "npm update @cargolift-cdi/types"
@@ -33,7 +34,7 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "@cargolift-cdi/types": "^0.1.158",
+    "@cargolift-cdi/types": "workspace:*",
     "@types/node": "^25.2.2",
     "typescript": "^5.9.3"
   },
