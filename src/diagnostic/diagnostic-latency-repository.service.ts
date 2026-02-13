@@ -7,9 +7,9 @@ import { DiagnosticLatency } from '@cargolift-cdi/types';
  * Responsável por criar/atualizar registros de latência associados a um id.
  */
 @Injectable()
-export class DiagnosticLatencyRepositoryService {
+export class DiagnosticLatencyRepository {
   constructor(
-    @InjectRepository(DiagnosticLatency)
+    @InjectRepository(DiagnosticLatency, "middleware")
     private readonly repo: Repository<DiagnosticLatency>
   ) {}
 

@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
+import { DataSource, Repository } from "typeorm";
 import { IntegrationAgent } from "@cargolift-cdi/types";
 
 @Injectable()
-export class AgentRepositoryService {
+export class IntegrationAgentRepository {
   constructor(
-    @InjectRepository(IntegrationAgent)
+    @InjectRepository(IntegrationAgent, "middleware")
     private readonly repo: Repository<IntegrationAgent>
   ) {}
 

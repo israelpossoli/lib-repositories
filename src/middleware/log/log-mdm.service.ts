@@ -1,17 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { IntegrationStatus, LogIntegrationInbound } from '@cargolift-cdi/types';
+import { IntegrationStatus, LogMdm } from '@cargolift-cdi/types';
 /**
  * Repositório de log de integração de entrada (inbound).
  * Responsável por criar/atualizar registros de latência associados a um id.
  * Possibilidade de reprocessamento e auditoria.
  */
 @Injectable()
-export class LogInboundRepositoryService {
+export class LogMdmRepository {
   constructor(
-    @InjectRepository(LogIntegrationInbound)
-    private readonly repo: Repository<LogIntegrationInbound>
+    @InjectRepository(LogMdm, "middleware")
+    private readonly repo: Repository<LogMdm>
   ) {}
 
   /**
@@ -21,11 +21,11 @@ export class LogInboundRepositoryService {
    * @param timestamp_start
    * @returns
    */
-  async register(correlationId: string, data: Partial<LogIntegrationInbound> = {}): Promise<LogIntegrationInbound | null> {
+  async register(correlationId: string, data: Partial<LogMdm> = {}): Promise<LogMdm | null> {
     const payload = {
       correlationId,
-      durationProcessMs: data.timestampProcess
-        ? Date.now() - new Date(data.timestampProcess || "").getTime()
+      durationProcessMs: data.timestampStart
+        ? Date.now() - new Date(data.timestampStart || "").getTime()
         : undefined,
       ...data,
     };
@@ -34,8 +34,8 @@ export class LogInboundRepositoryService {
       const endTime = Date.now();
 
       payload.timestampEnd = new Date();
-      if (payload.timestampStart) {
-        payload.durationMs = endTime - new Date(payload.timestampStart).getTime();
+      if (payload.timestampOriginStart) {
+        payload.durationMs = endTime - new Date(payload.timestampOriginStart).getTime();
       }
     }
 

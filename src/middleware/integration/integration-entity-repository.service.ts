@@ -4,9 +4,9 @@ import { Repository } from "typeorm";
 import { IntegrationEntity } from "@cargolift-cdi/types";
 
 @Injectable()
-export class EntityRepositoryService {
+export class IntegrationEntityRepository {
   constructor(
-    @InjectRepository(IntegrationEntity)
+    @InjectRepository(IntegrationEntity, "middleware")
     private readonly repo: Repository<IntegrationEntity>
   ) {}
 

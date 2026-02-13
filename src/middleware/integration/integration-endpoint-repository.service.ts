@@ -4,11 +4,11 @@ import { Repository } from 'typeorm';
 import { IntegrationEndpoint, IntegrationCredential } from '@cargolift-cdi/types';
 
 @Injectable()
-export class EndpointRepositoryService {
+export class IntegrationEndpointRepository {
   constructor(
-    @InjectRepository(IntegrationEndpoint)
+    @InjectRepository(IntegrationEndpoint, "middleware")
     private readonly repo: Repository<IntegrationEndpoint>,
-    @InjectRepository(IntegrationCredential)
+    @InjectRepository(IntegrationCredential, "middleware")
     private readonly repoCredential: Repository<IntegrationCredential>,
   ) {}
 

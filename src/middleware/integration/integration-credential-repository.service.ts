@@ -5,9 +5,9 @@ import { Repository } from 'typeorm';
 
 
 @Injectable()
-export class CredentialRepositoryService {
+export class IntegrationCredentialRepository {
   constructor(
-    @InjectRepository(IntegrationCredential)
+    @InjectRepository(IntegrationCredential, "middleware")
     private readonly repo: Repository<IntegrationCredential>,
   ) {}
 
