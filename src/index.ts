@@ -16,3 +16,6 @@ export * from './middleware/log/log-mdm.service.js';
 
 // Metadata
 export * from './metadata/entity-dynamic.repository.js';
+
+// Util
+export * from './util/database-error-classifier.js';

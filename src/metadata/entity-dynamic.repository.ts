@@ -38,7 +38,7 @@ export class EntityDynamicRepository {
     return results[0] ?? null;
   }
 
-  async save(entity: string, data: any, action: "create" | "update" | "upsert", entityData: IntegrationEntity) : Promise<EntityDynamicSaveResult> {
+  async save(entity: string, action: "create" | "update" | "upsert", data: any, entityData: IntegrationEntity) : Promise<EntityDynamicSaveResult> {
     const entityRecord = entityData ?? await this.integrationEntityRepository.getFirstActive(entity);
     if (!entityRecord) {
       return { success: false, error: `Entidade não encontrada: ${entity}` };
