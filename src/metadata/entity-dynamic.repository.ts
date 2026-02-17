@@ -81,12 +81,25 @@ export class EntityDynamicRepository {
       return { success: false, error: `Nenhum campo editável definido para a entidade: ${entity}` };
     }
 
-    if ((action === "update" || action === "upsert") && (!businessKeyValues || Object.keys(businessKeyValues).length === 0)) {
-      return { success: false, error: `Valores das chaves de negócio (businessKeyValues) são obrigatórios para ${action}` };
+    if (
+      (action === "update" || action === "upsert") &&
+      (!businessKeyValues || Object.keys(businessKeyValues).length === 0)
+    ) {
+      return {
+        success: false,
+        error: `Valores das chaves de negócio (businessKeyValues) são obrigatórios para ${action}`,
+      };
     }
 
     const editableValues = editableFields.map((f) => data?.[f] ?? null);
-    const { sql, params } = this.buildSql(action, table, editableFields, businessKeys, editableValues, businessKeyValues ?? {});
+    const { sql, params } = this.buildSql(
+      action,
+      table,
+      editableFields,
+      businessKeys,
+      editableValues,
+      businessKeyValues ?? {},
+    );
 
     if (!sql) {
       return { success: false, error: `Nenhum campo a atualizar para a entidade: ${entity}` };
@@ -95,15 +108,27 @@ export class EntityDynamicRepository {
     return this.executeInTransaction(async (queryRunner) => {
       const result = await queryRunner.query(sql, params);
 
-      // PostgreSQL via TypeORM retorna [rows[], rowCount]
-      const rows = Array.isArray(result?.[0]) ? result[0] as Record<string, unknown>[] : [];
-      const affectedCount = typeof result?.[1] === "number" ? result[1] : rows.length;
+      // Formato de retorno do PostgreSQL via TypeORM:
+      //   INSERT  retorna rows[] diretamente        → [{…}, …]
+      //   UPDATE  retorna [rows[], rowCount]        → [[{…}, …], 1]
+      const isNestedResult = Array.isArray(result) && Array.isArray(result[0]);
+      const rows: Record<string, unknown>[] = isNestedResult
+        ? (result[0] as Record<string, unknown>[])
+        : Array.isArray(result)
+          ? (result as Record<string, unknown>[])
+          : [];
+      const affectedCount = isNestedResult && typeof result[1] === "number" ? result[1] : rows.length;
 
       if ((action === "update" || action === "upsert") && affectedCount === 0) {
-        return { success: false, error: `Nenhum registro encontrado para ${action === "update" ? "atualizar" : "inserir/atualizar"}`, affected: 0, errorDetails: { sql, params} };
+        return {
+          success: false,
+          error: `Nenhum registro encontrado para ${action === "update" ? "atualizar" : "inserir/atualizar"}`,
+          affected: 0,
+          errorDetails: { sql, params },
+        };
       }
 
-      return { success: true, data: rows[0] ?? null };
+      return { success: true, data: rows[0] ?? null, affected: affectedCount };
     });
   }
 
@@ -112,7 +137,7 @@ export class EntityDynamicRepository {
     entityData: IntegrationEntity,
     businessKeyValues: Record<string, unknown>,
   ): Promise<EntityDynamicDeleteResult> {
-    const entityRecord = entityData ?? await this.integrationEntityRepository.getFirstActive(entity);
+    const entityRecord = entityData ?? (await this.integrationEntityRepository.getFirstActive(entity));
     if (!entityRecord) {
       return { success: false, error: `Entidade não encontrada: ${entity}` };
     }
@@ -127,7 +152,10 @@ export class EntityDynamicRepository {
     }
 
     if (!businessKeyValues || Object.keys(businessKeyValues).length === 0) {
-      return { success: false, error: "Valores das chaves de negócio (businessKeyValues) são obrigatórios para exclusão" };
+      return {
+        success: false,
+        error: "Valores das chaves de negócio (businessKeyValues) são obrigatórios para exclusão",
+      };
     }
 
     const table = entityRecord.metadados.storage.table;
@@ -139,9 +167,7 @@ export class EntityDynamicRepository {
     }
 
     const values = whereKeys.map((k) => businessKeyValues[k]);
-    const whereClause = whereKeys
-      .map((key, idx) => `${this.sanitizeIdentifier(key)} = $${idx + 1}`)
-      .join(" AND ");
+    const whereClause = whereKeys.map((key, idx) => `${this.sanitizeIdentifier(key)} = $${idx + 1}`).join(" AND ");
 
     const sql = `DELETE FROM ${sanitizedTable} WHERE ${whereClause}`;
 
@@ -152,7 +178,12 @@ export class EntityDynamicRepository {
       const affected = typeof result?.[1] === "number" ? result[1] : 0;
 
       if (affected === 0) {
-        return { success: false, affected: 0, error: "Nenhum registro encontrado para excluir", errorDetails: { sql, params: values } };
+        return {
+          success: false,
+          affected: 0,
+          error: "Nenhum registro encontrado para excluir",
+          errorDetails: { sql, params: values },
+        };
       }
 
       return { success: true, affected };
@@ -190,7 +221,11 @@ export class EntityDynamicRepository {
   }
 
   private getEditableFields(entityData: IntegrationEntity): string[] {
-    return entityData?.metadados?.fields?.filter((f: FieldMetadata) => !f.schema?.readonly).map((f: FieldMetadata) => f.field) ?? [];
+    return (
+      entityData?.metadados?.fields
+        ?.filter((f: FieldMetadata) => !f.schema?.readonly)
+        .map((f: FieldMetadata) => f.field) ?? []
+    );
   }
 
   // ──────────────────────────────────────────────
@@ -219,7 +254,14 @@ export class EntityDynamicRepository {
         };
 
       case "update":
-        return this.buildUpdateSql(sanitizedTable, sanitizedColumns, editableFields, businessKeys, params, businessKeyValues);
+        return this.buildUpdateSql(
+          sanitizedTable,
+          sanitizedColumns,
+          editableFields,
+          businessKeys,
+          params,
+          businessKeyValues,
+        );
 
       case "upsert":
         return this.buildUpsertSql(sanitizedTable, sanitizedColumns, cols, valuePlaceholders, businessKeys, params);
@@ -244,9 +286,7 @@ export class EntityDynamicRepository {
       return { sql: "", params: [] };
     }
 
-    const setClause = updateFields
-      .map(({ col }, idx) => `${col} = $${idx + 1}`)
-      .join(", ");
+    const setClause = updateFields.map(({ col }, idx) => `${col} = $${idx + 1}`).join(", ");
 
     const updateParams = updateFields.map(({ value }) => value);
 
@@ -271,9 +311,7 @@ export class EntityDynamicRepository {
     params: unknown[],
   ): { sql: string; params: unknown[] } {
     const sanitizedBusinessKeys = businessKeys.map((k) => this.sanitizeIdentifier(k)).join(", ");
-    const updateSet = sanitizedColumns
-      .map((col) => `${col} = EXCLUDED.${col}`)
-      .join(", ");
+    const updateSet = sanitizedColumns.map((col) => `${col} = EXCLUDED.${col}`).join(", ");
 
     return {
       sql: `INSERT INTO ${sanitizedTable} (${cols}) VALUES (${valuePlaceholders}) ON CONFLICT (${sanitizedBusinessKeys}) DO UPDATE SET ${updateSet} RETURNING *`,
@@ -292,7 +330,7 @@ export class EntityDynamicRepository {
     return `"${identifier.replace(/"/g, '""')}"`;
   }
 
-  private async executeInTransaction<T extends { success: boolean; error?: string, stack?: string }>(
+  private async executeInTransaction<T extends { success: boolean; error?: string; stack?: string }>(
     operation: (queryRunner: QueryRunner) => Promise<T>,
   ): Promise<T> {
     const queryRunner = this.mdmDs.createQueryRunner();

@@ -24,18 +24,31 @@ export class LogMdmRepository {
   async register(correlationId: string, data: Partial<LogMdm> = {}): Promise<LogMdm | null> {
     const payload = {
       correlationId,
-      durationProcessMs: data.timestampStart
-        ? Date.now() - new Date(data.timestampStart || "").getTime()
+      // Calcula duração do último processamento
+      durationMs: data.timestampLastAttempt
+        ? Date.now() - new Date(data.timestampLastAttempt).getTime()
         : undefined,
       ...data,
     };
 
-    if (data.status === IntegrationStatus.SUCCESS || data.status === IntegrationStatus.FAILED) {
+    if (data.status === IntegrationStatus.SUCCESS || data.status === IntegrationStatus.FAILED || data.status === IntegrationStatus.DISCARTED) {
       const endTime = Date.now();
 
       payload.timestampEnd = new Date();
+      
+      // Calcula duração total desde a origem até o fim do processamento
       if (payload.timestampOriginStart) {
-        payload.durationMs = endTime - new Date(payload.timestampOriginStart).getTime();
+        payload.durationLifetime = endTime - new Date(payload.timestampOriginStart).getTime();
+      }
+
+      // Calcula duração total desde o início do processamento até o fim considerando reprocessamentos
+      if (payload.timestampStart) {
+        payload.durationTotal = endTime - new Date(payload.timestampStart).getTime();
+      }
+
+      
+      if (payload.timestampLastAttempt) {
+        payload.durationMs = endTime - new Date(payload.timestampLastAttempt).getTime();
       }
     }
 
