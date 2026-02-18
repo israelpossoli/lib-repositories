@@ -1,28 +1,39 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { IntegrationOutbound } from "@cargolift-cdi/types";
+import { RoutingOutbound } from "@cargolift-cdi/types";
 
 @Injectable()
 export class IntegrationOutboundRepository {
   constructor(
-    @InjectRepository(IntegrationOutbound, "middleware")
-    private readonly repo: Repository<IntegrationOutbound>
+    @InjectRepository(RoutingOutbound, "middleware")
+    private readonly repo: Repository<RoutingOutbound>
   ) {}
 
-  async getRoutes(agent: string, entity: string, action: string): Promise<IntegrationOutbound[]> {
+  /**
+   * Busca as rotas de integração de saída (outbound) ativas para um determinado agente, entidade e ação, excluindo rotas do próprio agente de origem.
+   * A busca considera as seguintes regras de correspondência para a ação:
+   * - Rotas com action = 'all' correspondem a todas as ações
+   * - Rotas com action = '<ação específica>' correspondem apenas àquela ação
+   * - Rotas com action contendo uma lista de ações separadas por vírgula correspondem se a ação estiver na lista
+   * @param agent 
+   * @param entity 
+   * @param action 
+   * @returns 
+   */
+  async getRoutes(agent: string, entity: string, action: string): Promise<RoutingOutbound[]> {
     const qb = this.repo
-      .createQueryBuilder("integration_outbound")
-      .where("integration_outbound.agent = :agent", { agent })
-      .andWhere("integration_outbound.entity = :entity", { entity })
-      .andWhere("integration_outbound.active = :active", { active: true })
+      .createQueryBuilder("routing_outbound")
+      .where("routing_outbound.agent <> :agent", { agent })
+      .andWhere("routing_outbound.entity = :entity", { entity })
+      .andWhere("routing_outbound.active = :active", { active: true })
       .andWhere(
         `(
-          integration_outbound.action = 'all' OR
-          integration_outbound.action = :action OR
-          integration_outbound.action LIKE :actionListPrefix OR
-          integration_outbound.action LIKE :actionListInfix OR
-          integration_outbound.action LIKE :actionListSuffix
+          routing_outbound.action = 'all' OR
+          routing_outbound.action = :action OR
+          routing_outbound.action LIKE :actionListPrefix OR
+          routing_outbound.action LIKE :actionListInfix OR
+          routing_outbound.action LIKE :actionListSuffix
         )`,
         {
           action,
@@ -33,33 +44,33 @@ export class IntegrationOutboundRepository {
       )
       .orderBy(
         `CASE
-          WHEN integration_outbound.action = :action THEN 1
-          WHEN integration_outbound.action LIKE :actionListPrefix OR
-               integration_outbound.action LIKE :actionListInfix OR
-               integration_outbound.action LIKE :actionListSuffix THEN 2
-          WHEN integration_outbound.action = 'all' THEN 3
+          WHEN routing_outbound.action = :action THEN 1
+          WHEN routing_outbound.action LIKE :actionListPrefix OR
+               routing_outbound.action LIKE :actionListInfix OR
+               routing_outbound.action LIKE :actionListSuffix THEN 2
+          WHEN routing_outbound.action = 'all' THEN 3
           ELSE 4
         END`,
         "ASC"
       )
-      .addOrderBy("integration_outbound.version", "DESC");
+      .addOrderBy("routing_outbound.version", "DESC");
 
     return qb.getMany();
   }
 
-  async find(agent: string, entity: string, action: string): Promise<IntegrationOutbound | null> {
+  async find(agent: string, entity: string, action: string): Promise<RoutingOutbound | null> {
     const qb = this.repo
-      .createQueryBuilder("integration_outbound")
-      .where("integration_outbound.agent = :agent", { agent })
-      .andWhere("integration_outbound.entity = :entity", { entity })
-      .andWhere("integration_outbound.active = :active", { active: true })
+      .createQueryBuilder("routing_outbound")
+      .where("routing_outbound.agent = :agent", { agent })
+      .andWhere("routing_outbound.entity = :entity", { entity })
+      .andWhere("routing_outbound.active = :active", { active: true })
       .andWhere(
         `(
-          integration_outbound.action = 'all' OR
-          integration_outbound.action = :action OR
-          integration_outbound.action LIKE :actionListPrefix OR
-          integration_outbound.action LIKE :actionListInfix OR
-          integration_outbound.action LIKE :actionListSuffix
+          routing_outbound.action = 'all' OR
+          routing_outbound.action = :action OR
+          routing_outbound.action LIKE :actionListPrefix OR
+          routing_outbound.action LIKE :actionListInfix OR
+          routing_outbound.action LIKE :actionListSuffix
         )`,
         {
           action,
@@ -70,16 +81,16 @@ export class IntegrationOutboundRepository {
       )
       .orderBy(
         `CASE
-          WHEN integration_outbound.action = :action THEN 1
-          WHEN integration_outbound.action LIKE :actionListPrefix OR
-               integration_outbound.action LIKE :actionListInfix OR
-               integration_outbound.action LIKE :actionListSuffix THEN 2
-          WHEN integration_outbound.action = 'all' THEN 3
+          WHEN routing_outbound.action = :action THEN 1
+          WHEN routing_outbound.action LIKE :actionListPrefix OR
+               routing_outbound.action LIKE :actionListInfix OR
+               routing_outbound.action LIKE :actionListSuffix THEN 2
+          WHEN routing_outbound.action = 'all' THEN 3
           ELSE 4
         END`,
         "ASC"
       )
-      .addOrderBy("integration_outbound.version", "DESC");
+      .addOrderBy("routing_outbound.version", "DESC");
 
     return qb.getOne();
   }

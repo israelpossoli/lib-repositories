@@ -15,7 +15,8 @@ export * from './middleware/log/log-integration-inbound.service.js';
 export * from './middleware/log/log-mdm.service.js';
 
 // Metadata
-export * from './metadata/entity-dynamic.repository.js';
+export * from './middleware/shared/entity-dynamic.repository.js';
+export * from './middleware/shared/audit-trail.repository.js';
 
 // Util
 export * from './util/database-error-classifier.js';

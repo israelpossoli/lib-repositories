@@ -1,8 +1,11 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import { DataSource, QueryRunner } from "typeorm";
-import { FieldMetadata, IntegrationEntity } from "@cargolift-cdi/types";
-import { IntegrationEntityRepository } from "../middleware/integration/integration-entity-repository.service.js";
+
+import { AuditTrail, DiffChangeLog, FieldMetadata, IntegrationEntity } from "@cargolift-cdi/types";
+
+import { IntegrationEntityRepository } from "../integration/integration-entity-repository.service.js";
+import { AuditTrailRepository } from "./audit-trail.repository.js";
 
 export interface EntityDynamicSaveResult {
   success: boolean;
@@ -18,6 +21,7 @@ export interface EntityDynamicDeleteResult {
   errorDetails?: unknown;
 }
 
+
 @Injectable()
 export class EntityDynamicRepository {
   // private readonly logger = new Logger(EntityDynamicRepository.name);
@@ -27,6 +31,7 @@ export class EntityDynamicRepository {
   constructor(
     @InjectDataSource("mdm") private readonly mdmDs: DataSource,
     private readonly integrationEntityRepository: IntegrationEntityRepository,
+    private readonly auditTrailRepository: AuditTrailRepository,
   ) {}
 
   // ──────────────────────────────────────────────
@@ -67,6 +72,7 @@ export class EntityDynamicRepository {
     data: Record<string, unknown>,
     entityData: IntegrationEntity,
     businessKeyValues?: Record<string, any>,
+    auditContext?: Partial<AuditTrail>,
   ): Promise<EntityDynamicSaveResult> {
     const validation = this.validateEntityForSave(entity, action, entityData);
     if (validation) {
@@ -74,11 +80,22 @@ export class EntityDynamicRepository {
     }
 
     const table = entity;
-    const businessKeys: string[] = entityData?.metadados?.storage?.businessKey ?? [];
-    const editableFields = this.getEditableFields(entityData);
+    const businessKeys: string[] = entityData?.metadados?.entity?.businessKey ?? [];
+    let editableFields = this.getEditableFields(entityData);
 
     if (editableFields.length === 0) {
       return { success: false, error: `Nenhum campo editável definido para a entidade: ${entity}` };
+    }
+
+    // Para update, incluir apenas os campos presentes no data (partial update),
+    // evitando sobrescrever com null campos que não foram enviados.
+    if (action === "update") {
+      const dataKeys = new Set(Object.keys(data));
+      editableFields = editableFields.filter((f) => dataKeys.has(f));
+
+      if (editableFields.length === 0) {
+        return { success: false, error: `Nenhum campo editável informado no payload para atualização da entidade: ${entity}` };
+      }
     }
 
     if (
@@ -106,6 +123,8 @@ export class EntityDynamicRepository {
     }
 
     return this.executeInTransaction(async (queryRunner) => {
+
+      // Executa o SQL construído dinamicamente para create/update/upsert
       const result = await queryRunner.query(sql, params);
 
       // Formato de retorno do PostgreSQL via TypeORM:
@@ -128,6 +147,23 @@ export class EntityDynamicRepository {
         };
       }
 
+      // Audit Trail
+      if (auditContext) {
+        const recordId = rows[0]?.id != null ? String(rows[0].id) : undefined;
+        await this.auditTrailRepository.registerWithQueryRunner(queryRunner, {
+          entity,
+          operation: action as "create" | "update" | "delete",
+          recordId,
+          businessKey: businessKeyValues,
+          correlationId: auditContext.correlationId,
+          changes: auditContext.changes ?? null,
+          agent: auditContext.agent ?? null,
+          username: auditContext.username ?? null,
+          additionalInfo: auditContext.additionalInfo ?? null,
+          changedAt: new Date(),
+        });
+      }
+
       return { success: true, data: rows[0] ?? null, affected: affectedCount };
     });
   }
@@ -136,17 +172,13 @@ export class EntityDynamicRepository {
     entity: string,
     entityData: IntegrationEntity,
     businessKeyValues: Record<string, unknown>,
+    auditContext?: Partial<AuditTrail>,
   ): Promise<EntityDynamicDeleteResult> {
     const entityRecord = entityData ?? (await this.integrationEntityRepository.getFirstActive(entity));
     if (!entityRecord) {
       return { success: false, error: `Entidade não encontrada: ${entity}` };
     }
-
-    if (!entityRecord.metadados?.storage?.table) {
-      return { success: false, error: `Tabela de armazenamento não definida para a entidade: ${entity}` };
-    }
-
-    const businessKeys: string[] = entityRecord.metadados.storage.businessKey ?? [];
+    const businessKeys: string[] = entityRecord.metadados?.entity.businessKey ?? [];
     if (businessKeys.length === 0) {
       return { success: false, error: "Chave de negócio não definida para a entidade" };
     }
@@ -158,7 +190,7 @@ export class EntityDynamicRepository {
       };
     }
 
-    const table = entityRecord.metadados.storage.table;
+    const table = entity;
     const sanitizedTable = this.sanitizeIdentifier(table);
 
     const whereKeys = businessKeys.filter((k) => businessKeyValues[k] !== undefined);
@@ -186,6 +218,20 @@ export class EntityDynamicRepository {
         };
       }
 
+      // Audit Trail
+      if (auditContext) {
+        await this.auditTrailRepository.registerWithQueryRunner(queryRunner, {
+          entity,
+          operation: "delete",
+          correlationId: auditContext.correlationId,
+          changes: auditContext.changes ?? null,
+          agent: auditContext.agent ?? null,
+          username: auditContext.username ?? null,
+          recordId: undefined,
+          additionalInfo: auditContext.additionalInfo ?? null,
+        });
+      }
+
       return { success: true, affected };
     });
   }
@@ -194,6 +240,7 @@ export class EntityDynamicRepository {
   // Validações
   // ──────────────────────────────────────────────
 
+  // Valida se a entidade existe, se tem a propriedade entity e se os campos estão definidos corretamente para a ação (create/update/upsert)
   private validateEntityForSave(
     entity: string,
     action: "create" | "update" | "upsert",
@@ -203,15 +250,11 @@ export class EntityDynamicRepository {
       return { success: false, error: `Entidade não encontrada: ${entity}` };
     }
 
-    if (!entityData.metadados?.storage?.table) {
-      return { success: false, error: `Tabela de armazenamento não definida para a entidade: ${entity}` };
-    }
-
     if (!entityData.metadados?.fields || entityData.metadados.fields.length === 0) {
       return { success: false, error: `Nenhum campo definido para a entidade: ${entity}` };
     }
 
-    const businessKeys: string[] = entityData.metadados.storage.businessKey ?? [];
+    const businessKeys: string[] = entityData.metadados.entity.businessKey ?? [];
 
     if ((action === "update" || action === "upsert") && businessKeys.length === 0) {
       return { success: false, error: "Chave de negócio não definida para a entidade" };
@@ -220,6 +263,7 @@ export class EntityDynamicRepository {
     return null;
   }
 
+  // Retorna os campos editáveis (não readonly) da entidade, ou seja, os campos que podem ser persistidos via save. Campos readonly são ignorados mesmo que estejam presentes no payload.
   private getEditableFields(entityData: IntegrationEntity): string[] {
     return (
       entityData?.metadados?.fields
@@ -268,6 +312,7 @@ export class EntityDynamicRepository {
     }
   }
 
+  // Construção de SQL para UPDATE, garantindo que as business keys sejam usadas apenas no WHERE e não sejam atualizadas.
   private buildUpdateSql(
     sanitizedTable: string,
     sanitizedColumns: string[],
@@ -302,6 +347,7 @@ export class EntityDynamicRepository {
     };
   }
 
+  // Construção de SQL para UPSERT usando ON CONFLICT, garantindo que as business keys sejam usadas apenas para identificação do registro e não sejam atualizadas.
   private buildUpsertSql(
     sanitizedTable: string,
     sanitizedColumns: string[],
@@ -323,6 +369,8 @@ export class EntityDynamicRepository {
   // Infraestrutura
   // ──────────────────────────────────────────────
 
+  // Sanitiza identificadores SQL (tabelas, colunas) para evitar SQL Injection via nomes de entidades ou campos. 
+  // Permite apenas caracteres alfanuméricos, underscore e ponto, e envolve o identificador em aspas duplas para preservar case sensitivity.
   private sanitizeIdentifier(identifier: string): string {
     if (!EntityDynamicRepository.IDENTIFIER_REGEX.test(identifier)) {
       throw new Error(`Identificador SQL inválido: ${identifier}`);
@@ -330,6 +378,8 @@ export class EntityDynamicRepository {
     return `"${identifier.replace(/"/g, '""')}"`;
   }
 
+  // Executa uma operação dentro de uma transação, garantindo commit ou rollback conforme o resultado.
+  // Usado para garantir atomicidade entre persistência e registro de audit trail.
   private async executeInTransaction<T extends { success: boolean; error?: string; stack?: string }>(
     operation: (queryRunner: QueryRunner) => Promise<T>,
   ): Promise<T> {
