@@ -4,7 +4,7 @@ import { Repository } from "typeorm";
 import { RoutingInbound } from "@cargolift-cdi/types";
 
 @Injectable()
-export class IntegrationInboundRepository {
+export class RoutingInboundRepository {
   constructor(
     @InjectRepository(RoutingInbound, "middleware")
     private readonly repo: Repository<RoutingInbound>

@@ -2,8 +2,8 @@
 // Integration
 export * from './middleware/integration/integration-agent-repository.service.js';
 export * from './middleware/integration/integration-entity-repository.service.js';
-export * from './middleware/integration/integration-inbound-repository.service.js';
-export * from './middleware/integration/integration-outbound-repository.service.js';
+export * from './middleware/integration/routing-inbound-repository.service.js';
+export * from './middleware/integration/routing-outbound-repository.service.js';
 export * from './middleware/integration/integration-endpoint-repository.service.js';
 export * from './middleware/integration/integration-credential-repository.service.js';
 

@@ -1,17 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { IntegrationStatus, LogIntegrationInbound } from '@cargolift-cdi/types';
+import { IntegrationStatus, LogRoutingInbound } from '@cargolift-cdi/types';
 /**
  * Repositório de log de integração de entrada (inbound).
  * Responsável por criar/atualizar registros de latência associados a um id.
  * Possibilidade de reprocessamento e auditoria.
  */
 @Injectable()
-export class LogIntegrationInboundRepository {
+export class LogRoutingInboundRepository {
   constructor(
-    @InjectRepository(LogIntegrationInbound, "middleware")
-    private readonly repo: Repository<LogIntegrationInbound>
+    @InjectRepository(LogRoutingInbound, "middleware")
+    private readonly repo: Repository<LogRoutingInbound>
   ) {}
 
   /**
@@ -21,7 +21,7 @@ export class LogIntegrationInboundRepository {
    * @param timestamp_start
    * @returns
    */
-  async register(correlationId: string, data: Partial<LogIntegrationInbound> = {}): Promise<LogIntegrationInbound | null> {
+  async register(correlationId: string, data: Partial<LogRoutingInbound> = {}): Promise<LogRoutingInbound | null> {
     const payload = {
       correlationId,
       // Calcula duração do último processamento
