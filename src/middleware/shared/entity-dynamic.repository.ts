@@ -48,7 +48,7 @@ export class EntityDynamicRepository {
     const keys = Object.keys(filters);
     const values = Object.values(filters);
 
-    let sql = `SELECT * FROM ${sanitizedEntity} WHERE 1=1`;
+    let sql = `SELECT * FROM ${sanitizedEntity} WHERE "deleted_at" IS NULL`;
 
     keys.forEach((key, idx) => {
       sql += ` AND ${this.sanitizeIdentifier(key)} = $${idx + 1}`;
@@ -149,7 +149,7 @@ export class EntityDynamicRepository {
 
       // Audit Trail
       if (auditContext) {
-        const recordId = rows[0]?.id != null ? String(rows[0].id) : undefined;
+        const recordId = rows[0]?.id == null ? undefined : String(rows[0].id);
         await this.auditTrailRepository.registerWithQueryRunner(queryRunner, {
           entity,
           operation: action as "create" | "update" | "delete",
@@ -201,12 +201,13 @@ export class EntityDynamicRepository {
     const values = whereKeys.map((k) => businessKeyValues[k]);
     const whereClause = whereKeys.map((key, idx) => `${this.sanitizeIdentifier(key)} = $${idx + 1}`).join(" AND ");
 
-    const sql = `DELETE FROM ${sanitizedTable} WHERE ${whereClause}`;
+    // Soft delete: marca deleted_at e updated_at, apenas em registros ainda não excluídos
+    const sql = `UPDATE ${sanitizedTable} SET "deleted_at" = NOW(), "updated_at" = NOW() WHERE ${whereClause} AND "deleted_at" IS NULL`;
 
     return this.executeInTransaction(async (queryRunner) => {
       const result = await queryRunner.query(sql, values);
 
-      // PostgreSQL via TypeORM retorna [rows[], rowCount]
+      // PostgreSQL via TypeORM para UPDATE retorna [rows[], rowCount]
       const affected = typeof result?.[1] === "number" ? result[1] : 0;
 
       if (affected === 0) {
@@ -331,7 +332,8 @@ export class EntityDynamicRepository {
       return { sql: "", params: [] };
     }
 
-    const setClause = updateFields.map(({ col }, idx) => `${col} = $${idx + 1}`).join(", ");
+    const setClause =
+      updateFields.map(({ col }, idx) => `${col} = $${idx + 1}`).join(", ") + ', "updated_at" = NOW()';
 
     const updateParams = updateFields.map(({ value }) => value);
 
@@ -357,7 +359,8 @@ export class EntityDynamicRepository {
     params: unknown[],
   ): { sql: string; params: unknown[] } {
     const sanitizedBusinessKeys = businessKeys.map((k) => this.sanitizeIdentifier(k)).join(", ");
-    const updateSet = sanitizedColumns.map((col) => `${col} = EXCLUDED.${col}`).join(", ");
+    const updateSet =
+      sanitizedColumns.map((col) => `${col} = EXCLUDED.${col}`).join(", ") + ', "updated_at" = NOW()';
 
     return {
       sql: `INSERT INTO ${sanitizedTable} (${cols}) VALUES (${valuePlaceholders}) ON CONFLICT (${sanitizedBusinessKeys}) DO UPDATE SET ${updateSet} RETURNING *`,
