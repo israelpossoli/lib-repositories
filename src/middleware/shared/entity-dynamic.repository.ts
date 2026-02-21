@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import { DataSource, QueryRunner } from "typeorm";
 
-import { AuditTrail, DiffChangeLog, FieldMetadata, IntegrationEntity } from "@cargolift-cdi/types";
+import { AuditTrail, FieldMetadata, IntegrationEntity } from "@cargolift-cdi/types";
 
 import { IntegrationEntityRepository } from "../integration/integration-entity-repository.service.js";
 import { AuditTrailRepository } from "./audit-trail.repository.js";
@@ -24,7 +24,11 @@ export interface EntityDynamicDeleteResult {
 
 @Injectable()
 export class EntityDynamicRepository {
-  // private readonly logger = new Logger(EntityDynamicRepository.name);
+
+  /** Campos gerenciados internamente pelo sistema (source data do MDM).
+   *  Incluídos na persistência mas não participam de validação de schema, permissões de campo ou diff de campos de negócio.
+   *  Populados pelo processador de mensagens via SourceDataHandler. */
+  public static readonly SYSTEM_FIELDS = ["source_additional_info", "source_status"];
 
   private static readonly IDENTIFIER_REGEX = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
 
@@ -79,6 +83,9 @@ export class EntityDynamicRepository {
       return validation;
     }
 
+    console.log("Data to save for entity", entity, ":", data);
+    console.log("Editable fields for entity", entity, ":", this.getEditableFields(entityData));
+
     const table = entity;
     const businessKeys: string[] = entityData?.metadados?.entity?.businessKey ?? [];
     let editableFields = this.getEditableFields(entityData);
@@ -89,14 +96,14 @@ export class EntityDynamicRepository {
 
     // Para update, incluir apenas os campos presentes no data (partial update),
     // evitando sobrescrever com null campos que não foram enviados.
-    if (action === "update") {
+    //if (action === "update") {
       const dataKeys = new Set(Object.keys(data));
       editableFields = editableFields.filter((f) => dataKeys.has(f));
 
       if (editableFields.length === 0) {
-        return { success: false, error: `Nenhum campo editável informado no payload para atualização da entidade: ${entity}` };
+        return { success: false, error: `Nenhum campo editável com valor para atualização da entidade: ${entity}` };
       }
-    }
+    //}
 
     if (
       (action === "update" || action === "upsert") &&
@@ -264,13 +271,16 @@ export class EntityDynamicRepository {
     return null;
   }
 
-  // Retorna os campos editáveis (não readonly) da entidade, ou seja, os campos que podem ser persistidos via save. Campos readonly são ignorados mesmo que estejam presentes no payload.
+  // Retorna os campos editáveis (não readonly) da entidade, ou seja, os campos que podem ser persistidos via save.
+  // Campos readonly são ignorados mesmo que estejam presentes no payload.
+  // Inclui também os campos de sistema (source_additional_info, source_status) que são gerenciados pelo SourceDataHandler.
   private getEditableFields(entityData: IntegrationEntity): string[] {
-    return (
+    const fieldEditable =
       entityData?.metadados?.fields
         ?.filter((f: FieldMetadata) => !f.schema?.readonly)
-        .map((f: FieldMetadata) => f.field) ?? []
-    );
+        .map((f: FieldMetadata) => f.field) ?? [];
+
+    return [...fieldEditable, ...EntityDynamicRepository.SYSTEM_FIELDS];
   }
 
   // ──────────────────────────────────────────────

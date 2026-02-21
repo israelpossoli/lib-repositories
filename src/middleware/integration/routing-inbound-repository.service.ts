@@ -10,11 +10,11 @@ export class RoutingInboundRepository {
     private readonly repo: Repository<RoutingInbound>
   ) {}
 
-  async get(agent: string, entity: string, method: string): Promise<RoutingInbound[]> {
+  async get(agent: string, endpoint: string, method: string): Promise<RoutingInbound[]> {
     const qb = this.repo
       .createQueryBuilder("routing_inbound")
       .where("routing_inbound.agent = :agent", { agent })
-      .andWhere("routing_inbound.entity = :entity", { entity })
+      .andWhere("routing_inbound.endpoint = :endpoint", { endpoint })
       .andWhere("routing_inbound.active = :active", { active: true })
       .andWhere(
         `(
@@ -52,7 +52,7 @@ export class RoutingInboundRepository {
     const resultMap = new Map<string, RoutingInbound>();
 
     for (const row of rows) {
-      const key = `${row.agent}::${row.entity}::${row.method.toUpperCase()}`;
+      const key = `${row.agent}::${row.endpoint}::${row.method.toUpperCase()}`;
       if (!resultMap.has(key)) {
         resultMap.set(key, row);
       }
@@ -61,8 +61,8 @@ export class RoutingInboundRepository {
     return Array.from(resultMap.values());
   }
 
-  async getFirstActive(agent: string, entity: string, method: string): Promise<RoutingInbound | null> {
-    const records = await this.get(agent, entity, method);
+  async getFirstActive(agent: string, endpoint: string, method: string): Promise<RoutingInbound | null> {
+    const records = await this.get(agent, endpoint, method);
     return records.length > 0 ? records[0] : null;
   }
   
