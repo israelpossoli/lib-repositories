@@ -13,6 +13,11 @@ export * from './diagnostic/diagnostic-latency-repository.service.js';
 // Logs
 export * from './middleware/log/log-integration-inbound.service.js';
 export * from './middleware/log/log-mdm.service.js';
+export * from './middleware/log/log-integration-outbound.service.js';
+export * from './middleware/log/integration-tracking.service.js';
+
+// Webhook
+export * from './middleware/webhook/webhook-subscription-repository.service.js';
 
 // Metadata
 export * from './middleware/shared/entity-dynamic.repository.js';
